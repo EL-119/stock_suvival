@@ -72,6 +72,8 @@ if(!state.stocks.some(s => s.id === selectedId)) selectedId = state.stocks[0].id
 let currentTab = '전체 종목';
 let buyMode = true;
 let sortByReturn = false;
+let stockPage = 0;
+const STOCKS_PER_PAGE = 8;
 let marketTimer = null;
 let lastTickAt = 0;
 
@@ -206,7 +208,7 @@ function newsTagClass(tag){
 
 function initTabs(){
   $('tabs').innerHTML = categories.map(c => `<button class="${c===currentTab?'active':''}" data-tab="${c}">${c}</button>`).join('');
-  $('tabs').querySelectorAll('button').forEach(btn=>btn.onclick=()=>{currentTab=btn.dataset.tab; render();});
+  $('tabs').querySelectorAll('button').forEach(btn=>btn.onclick=()=>{currentTab=btn.dataset.tab; stockPage = 0; render();});
 }
 
 function render(){
@@ -316,10 +318,23 @@ function changeAmount(s){ return s.price - s.prev; }
 
 function renderStocks(){
   const list = state.stocks.filter(s => currentTab==='전체 종목' || s.category===currentTab);
-  $('stockTable').innerHTML = list.map(s=>`
+  const totalPages = Math.max(1, Math.ceil(list.length / STOCKS_PER_PAGE));
+  if(stockPage >= totalPages) stockPage = totalPages - 1;
+  if(stockPage < 0) stockPage = 0;
+  const start = stockPage * STOCKS_PER_PAGE;
+  const pageList = list.slice(start, start + STOCKS_PER_PAGE);
+  $('stockTable').innerHTML = pageList.map(s=>`
     <tr data-id="${s.id}" class="${s.id===selectedId?'active':''}">
       <td>◆ ${s.name}</td><td>${format(s.price)}</td><td class="${changeAmount(s)>=0?'up':'down'}">${changeAmount(s)>=0?'▲':'▼'} ${format(Math.abs(changeAmount(s)))}</td><td class="${changeRate(s)>=0?'up':'down'}">${pct(changeRate(s))}</td><td>${format(s.volume)}</td>
     </tr>`).join('');
+
+  const end = Math.min(start + STOCKS_PER_PAGE, list.length);
+  $('stockPageInfo').textContent = `${currentTab} ${list.length ? start + 1 : 0}-${end} / ${list.length} · ${stockPage + 1}/${totalPages}쪽`;
+  $('stockPrevBtn').disabled = stockPage <= 0;
+  $('stockNextBtn').disabled = stockPage >= totalPages - 1;
+  $('stockPrevBtn').onclick = () => { if(stockPage > 0){ stockPage--; render(); } };
+  $('stockNextBtn').onclick = () => { if(stockPage < totalPages - 1){ stockPage++; render(); } };
+
   $('stockTable').querySelectorAll('tr').forEach(row=>row.onclick=()=>{selectedId=row.dataset.id; render();});
 }
 
