@@ -1,5 +1,5 @@
 const START_CASH = 10000000;
-const storageKey = 'antStockSurvivalV9';
+const storageKey = 'antStockSurvivalV10';
 const MARKET_OPEN_MIN = 9 * 60;
 const MARKET_CLOSE_MIN = 15 * 60 + 30;
 const MARKET_TOTAL_MIN = MARKET_CLOSE_MIN - MARKET_OPEN_MIN;
@@ -88,11 +88,15 @@ function createHistory(base){
   const arr = [];
   for(let i=0;i<42;i++){
     const open = price;
-    const change = (Math.random() - 0.45) * 0.012;
-    const close = Math.max(100, open * (1 + change));
+    let change = (Math.random() - 0.5) * 0.014;
+    if(i % 5 === 0) change = -Math.abs(change || 0.004);
+    if(i % 7 === 0) change = Math.abs(change || 0.004);
+    let close = Math.max(100, open * (1 + change));
+    if(Math.round(close) === Math.round(open)) close = open + (i % 2 === 0 ? 10 : -10);
+    close = Math.max(100, close);
     const high = Math.max(open, close) * (1 + Math.random()*0.01);
     const low = Math.min(open, close) * (1 - Math.random()*0.01);
-    arr.push({open, close, high, low, volume: Math.random()*100, gameMin: Math.max(MARKET_OPEN_MIN, MARKET_CLOSE_MIN - (42-i))});
+    arr.push({open, close, high, low, volume: 15 + Math.random()*120, gameMin: Math.max(MARKET_OPEN_MIN, MARKET_CLOSE_MIN - (42-i))});
     price = close;
   }
   return arr;
@@ -103,8 +107,11 @@ function normalizeCandleHistory(st){
   let history = Array.isArray(st.history) ? st.history : [];
   history = history.map((d,i)=>{
     const fallback = Number(st.price || st.prev || 1000);
-    const open = Number.isFinite(Number(d.open)) ? Number(d.open) : fallback;
-    const close = Number.isFinite(Number(d.close)) ? Number(d.close) : open;
+    let open = Number.isFinite(Number(d.open)) ? Number(d.open) : fallback;
+    let close = Number.isFinite(Number(d.close)) ? Number(d.close) : open;
+    if(Math.round(open) === Math.round(close)){
+      close = Math.max(100, open + (i % 2 === 0 ? 10 : -10));
+    }
     const high = Math.max(Number.isFinite(Number(d.high)) ? Number(d.high) : Math.max(open, close), open, close);
     const low = Math.min(Number.isFinite(Number(d.low)) ? Number(d.low) : Math.min(open, close), open, close);
     const volume = Math.max(1, Number.isFinite(Number(d.volume)) ? Number(d.volume) : Math.random()*100);
@@ -138,6 +145,12 @@ function loadGame(){
       });
       saved.stocks = merged;
       if(!saved.marketStartedAt) saved.marketStartedAt = Date.now();
+      const elapsedMarket = Date.now() - saved.marketStartedAt;
+      if(elapsedMarket >= REAL_MARKET_MS || saved.marketTime === '15:30' || saved.marketOpen === false){
+        saved.marketStartedAt = Date.now();
+        saved.marketTime = '09:00';
+        saved.marketOpen = true;
+      }
       if(!Array.isArray(saved.watchIds)) saved.watchIds = ['samsung','bio','energy','coin','dividend'].filter(id=>merged.some(s=>s.id===id));
       saved.chartRange = saved.chartRange || '1m';
       saved.marketTime = gameClockFromStart(saved.marketStartedAt);
@@ -483,9 +496,11 @@ function renderChart(){
     const yL = 18 + (max-d.low)/range*(h-70);
     const yO = 18 + (max-d.open)/range*(h-70);
     const yC = 18 + (max-d.close)/range*(h-70);
-    const up = d.close >= d.open;
-    ctx.strokeStyle = up ? '#ff4545' : '#2d8cff';
-    ctx.fillStyle = up ? '#ff4545' : '#2d8cff';
+    const isUp = Number(d.close) > Number(d.open);
+    const isDown = Number(d.close) < Number(d.open);
+    const candleColor = isUp ? '#ff4545' : (isDown ? '#2d8cff' : '#d7e4f5');
+    ctx.strokeStyle = candleColor;
+    ctx.fillStyle = candleColor;
     ctx.beginPath(); ctx.moveTo(x,yH); ctx.lineTo(x,yL); ctx.stroke();
     ctx.fillRect(x-cw/2, Math.min(yO,yC), cw, Math.max(2, Math.abs(yC-yO)));
     const vh = Math.min(32, d.volume / 120 * 28);
@@ -586,10 +601,17 @@ function nextDay(){
   else startNewMarketDay();
 }
 
+function applyClockTick(){
+  state.marketTime = gameClockFromStart(state.marketStartedAt);
+  state.marketOpen = state.marketTime < '15:30';
+  renderTop();
+  renderOrder();
+}
+
 function applyMarketTick(){
-  if(!isMarketOpen()){
-    renderTop();
-    renderOrder();
+  applyClockTick();
+  if(!state.marketOpen){
+    renderChart();
     saveGame();
     return;
   }
@@ -602,7 +624,12 @@ function applyMarketTick(){
     const drift = s.drift / 260;
     const move = Math.max(-0.035, Math.min(0.035, random + drift + eventImpact));
     const open = s.price;
-    s.price = Math.max(100, Math.round(s.price * (1+move) / 10) * 10);
+    let nextPrice = Math.max(100, Math.round(s.price * (1+move) / 10) * 10);
+    if(nextPrice === open){
+      const nudge = move >= 0 ? 10 : -10;
+      nextPrice = Math.max(100, open + nudge);
+    }
+    s.price = nextPrice;
     s.volume = Math.max(10000, Math.round(s.volume * (0.998 + Math.random()*0.008)));
     const close = s.price;
     const high = Math.max(open, close) * (1 + Math.random()*0.003);
@@ -615,7 +642,13 @@ function applyMarketTick(){
 
 function startMarketTicker(){
   if(marketTimer) clearInterval(marketTimer);
+  if(!state.marketStartedAt || state.marketTime === '15:30'){
+    state.marketStartedAt = Date.now();
+    state.marketTime = '09:00';
+    state.marketOpen = true;
+  }
   lastTickAt = Date.now();
+  applyClockTick();
   marketTimer = setInterval(applyMarketTick, TICK_MS);
 }
 
@@ -650,7 +683,7 @@ $('buyMode').onclick=()=>{buyMode=true; renderOrder();};
 $('sellMode').onclick=()=>{buyMode=false; renderOrder();};
 $('submitOrder').onclick=submitOrder;
 $('nextDayBtn').onclick=nextDay;
-$('resetBtn').onclick=()=>{ if(confirm('게임을 초기화할까요?')){ ['antStockSurvivalV9','antStockSurvivalV8','antStockSurvivalV7','antStockSurvivalV6','antStockSurvivalV5','antStockSurvivalV4','antStockSurvivalV3'].forEach(k=>localStorage.removeItem(k)); location.reload(); } };
+$('resetBtn').onclick=()=>{ if(confirm('게임을 초기화할까요?')){ ['antStockSurvivalV10','antStockSurvivalV9','antStockSurvivalV8','antStockSurvivalV7','antStockSurvivalV6','antStockSurvivalV5','antStockSurvivalV4','antStockSurvivalV3'].forEach(k=>localStorage.removeItem(k)); location.reload(); } };
 $('guideBtn').onclick=showGuide;
 $('rankBtn').onclick=showRank;
 $('modalClose').onclick=()=> $('modal').classList.remove('show');
