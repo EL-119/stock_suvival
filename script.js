@@ -1,17 +1,57 @@
 const START_CASH = 10000000;
-const storageKey = 'antStockSurvivalV4';
+const storageKey = 'antStockSurvivalV5';
+const MARKET_OPEN_MIN = 9 * 60;
+const MARKET_CLOSE_MIN = 15 * 60 + 30;
+const MARKET_TOTAL_MIN = MARKET_CLOSE_MIN - MARKET_OPEN_MIN;
+const REAL_MARKET_MS = 60 * 60 * 1000;
+const TICK_MS = 2000;
 
-const categories = ['전체 종목', '주식', '바이오', 'IT', '에너지', '게임/기타'];
-const initialStocks = [
-  { id:'samsung', name:'삼성전자우', category:'IT', price:72300, prev:72300, volume:1234567, volatility:0.045, drift:0.002, history:[] },
-  { id:'bio', name:'미래바이오', category:'바이오', price:15750, prev:15750, volume:8765432, volatility:0.115, drift:0.006, history:[] },
-  { id:'energy', name:'한빛에너지', category:'에너지', price:8620, prev:8620, volume:2345678, volatility:0.085, drift:0.001, history:[] },
-  { id:'coin', name:'게임코인', category:'게임/기타', price:3210, prev:3210, volume:15678901, volatility:0.16, drift:-0.001, history:[] },
-  { id:'dividend', name:'대한배당', category:'주식', price:25100, prev:25100, volume:987654, volatility:0.035, drift:0.0015, history:[] },
-  { id:'robot', name:'국민로보틱스', category:'IT', price:43800, prev:43800, volume:1888800, volatility:0.075, drift:0.004, history:[] },
-  { id:'ship', name:'동해조선', category:'주식', price:12900, prev:12900, volume:1654321, volatility:0.07, drift:0.001, history:[] },
-  { id:'food', name:'우리푸드', category:'주식', price:6400, prev:6400, volume:723401, volatility:0.04, drift:0.001, history:[] }
-];
+const categories = ['전체 종목', '주식', '바이오', 'IT', '에너지', '게임/기타', '금융', '소비재'];
+
+function buildInitialStocks(){
+  const base = [
+    { id:'samsung', name:'삼성전자우', category:'IT', price:72300, prev:72300, volume:1234567, volatility:0.045, drift:0.002, history:[] },
+    { id:'bio', name:'미래바이오', category:'바이오', price:15750, prev:15750, volume:8765432, volatility:0.115, drift:0.006, history:[] },
+    { id:'energy', name:'한빛에너지', category:'에너지', price:8620, prev:8620, volume:2345678, volatility:0.085, drift:0.001, history:[] },
+    { id:'coin', name:'게임코인', category:'게임/기타', price:3210, prev:3210, volume:15678901, volatility:0.16, drift:-0.001, history:[] },
+    { id:'dividend', name:'대한배당', category:'주식', price:25100, prev:25100, volume:987654, volatility:0.035, drift:0.0015, history:[] },
+    { id:'robot', name:'국민로보틱스', category:'IT', price:43800, prev:43800, volume:1888800, volatility:0.075, drift:0.004, history:[] },
+    { id:'ship', name:'동해조선', category:'주식', price:12900, prev:12900, volume:1654321, volatility:0.07, drift:0.001, history:[] },
+    { id:'food', name:'우리푸드', category:'소비재', price:6400, prev:6400, volume:723401, volatility:0.04, drift:0.001, history:[] }
+  ];
+  const prefixes = ['대한','미래','한빛','우리','국민','동해','세종','하나','청담','백두','코리아','서울','유니온','퍼스트','네오','스마트','그린','블루','골든','에이스'];
+  const sectors = [
+    ['전자','IT',62000,.055,.002], ['테크','IT',28400,.07,.003], ['반도체','IT',51000,.065,.002], ['소프트','IT',19300,.08,.002],
+    ['바이오','바이오',14200,.12,.004], ['제약','바이오',22700,.10,.003], ['헬스','바이오',9600,.095,.002],
+    ['에너지','에너지',11800,.08,.001], ['솔라','에너지',17300,.085,.002], ['배터리','에너지',46200,.09,.003],
+    ['푸드','소비재',7800,.04,.001], ['리테일','소비재',12100,.05,.001], ['뷰티','소비재',18500,.06,.002],
+    ['증권','금융',9200,.055,.001], ['은행','금융',15400,.04,.001], ['카드','금융',20300,.045,.001],
+    ['게임즈','게임/기타',8400,.12,.001], ['엔터','게임/기타',25800,.09,.002], ['모빌리티','게임/기타',31900,.085,.002],
+    ['중공업','주식',33600,.065,.001], ['건설','주식',12800,.06,.001], ['화학','주식',24600,.07,.001]
+  ];
+  let idx = 1;
+  for(const pre of prefixes){
+    for(const [suffix,category,basePrice,vol,drift] of sectors){
+      if(base.length >= 108) break;
+      const price = Math.max(1000, Math.round((basePrice * (0.55 + Math.random()*1.25)) / 10) * 10);
+      base.push({
+        id:`stock${idx++}`,
+        name:`${pre}${suffix}`,
+        category,
+        price,
+        prev:price,
+        volume:Math.round(200000 + Math.random()*9000000),
+        volatility:vol,
+        drift,
+        history:[]
+      });
+    }
+    if(base.length >= 108) break;
+  }
+  return base;
+}
+
+const initialStocks = buildInitialStocks();
 
 const eventPool = [
   { text:'정부, 반도체 산업 지원 확대 검토', body:'정부가 반도체 장비와 AI 서버 관련 세제 지원을 확대하는 방안을 검토한다는 소식이 전해졌습니다. 시장에서는 삼성전자우와 국민로보틱스 같은 IT 관련주에 수급이 몰릴 수 있다고 보고 있습니다.', targets:['samsung','robot'], power:0.06, tag:'호재' },
@@ -28,9 +68,12 @@ const eventPool = [
 
 let state = loadGame();
 let selectedId = state.selectedId || state.stocks[0].id;
+if(!state.stocks.some(s => s.id === selectedId)) selectedId = state.stocks[0].id;
 let currentTab = '전체 종목';
 let buyMode = true;
 let sortByReturn = false;
+let marketTimer = null;
+let lastTickAt = 0;
 
 const $ = id => document.getElementById(id);
 const format = n => Math.round(n).toLocaleString('ko-KR');
@@ -53,14 +96,29 @@ function createHistory(base){
 
 function loadGame(){
   try{
-    const saved = JSON.parse(localStorage.getItem(storageKey)) || JSON.parse(localStorage.getItem('antStockSurvivalV3'));
+    const saved = JSON.parse(localStorage.getItem(storageKey)) || JSON.parse(localStorage.getItem('antStockSurvivalV4')) || JSON.parse(localStorage.getItem('antStockSurvivalV3'));
     if(saved && saved.stocks && saved.portfolio){
-      if(!saved.marketTime) saved.marketTime = '15:30';
+      const byId = new Map(saved.stocks.map(x => [x.id, x]));
+      const merged = initialStocks.map(base => {
+        const old = byId.get(base.id);
+        if(old){
+          old.category = old.category || base.category;
+          old.volatility = old.volatility || base.volatility;
+          old.drift = old.drift || base.drift;
+          old.history = Array.isArray(old.history) && old.history.length ? old.history : createHistory(old.price || base.price);
+          return old;
+        }
+        return {...base, history:createHistory(base.price)};
+      });
+      saved.stocks = merged;
+      if(!saved.marketStartedAt) saved.marketStartedAt = Date.now();
+      saved.marketTime = gameClockFromStart(saved.marketStartedAt);
+      saved.marketOpen = saved.marketTime < '15:30';
       return saved;
     }
   }catch(e){}
   const stocks = initialStocks.map(s => ({...s, history:createHistory(s.price)}));
-  return { day:1, cash:START_CASH, stocks, portfolio:{}, news:[], events:[], selectedId:'samsung', logs:[], startedAt:Date.now(), marketTime:'09:00' };
+  return { day:1, cash:START_CASH, stocks, portfolio:{}, news:[], events:[], selectedId:'samsung', logs:[], startedAt:Date.now(), marketStartedAt:Date.now(), marketTime:'09:00', marketOpen:true };
 }
 
 function saveGame(){
@@ -80,8 +138,28 @@ function todayDate(){
   const d = new Date(2026,6,5 + state.day - 1);
   return d.toISOString().slice(0,10).replaceAll('-','.');
 }
+function toClock(totalMin){
+  const h = Math.floor(totalMin / 60);
+  const m = Math.floor(totalMin % 60);
+  return `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}`;
+}
+
+function gameClockFromStart(startedAt){
+  const elapsed = Math.max(0, Date.now() - startedAt);
+  const gameMin = Math.min(MARKET_TOTAL_MIN, Math.floor(elapsed / REAL_MARKET_MS * MARKET_TOTAL_MIN));
+  return toClock(MARKET_OPEN_MIN + gameMin);
+}
+
+function isMarketOpen(){
+  return marketTime() < '15:30';
+}
+
 
 function marketTime(){
+  if(state.marketStartedAt){
+    state.marketTime = gameClockFromStart(state.marketStartedAt);
+    state.marketOpen = state.marketTime < '15:30';
+  }
   return state.marketTime || '09:00';
 }
 
@@ -148,7 +226,7 @@ function renderTop(){
   const sv = stockValue(), nw = netWorth(), pf = profit();
   $('dayText').textContent = String(state.day).padStart(2,'0');
   $('dateText').textContent = todayDate();
-  $('sessionText').textContent = `${marketTime()} ${marketTime() >= '15:30' ? '장 마감' : '장 진행 중'}`;
+  $('sessionText').textContent = `${marketTime()} ${isMarketOpen() ? '장 진행 중' : '장 마감'}`;
   $('netWorthText').textContent = `${format(nw)} 원`;
   $('cashText').textContent = `${format(state.cash)} 원`;
   $('stockValueText').textContent = `${format(sv)} 원`;
@@ -160,7 +238,7 @@ function renderTop(){
   $('survivalDayText').textContent = `${state.day}일차 진행 중`;
   $('survivalReturnText').textContent = pct(y);
   $('survivalReturnText').className = y >= 0 ? 'up' : 'down';
-  $('nextDayBtn').innerHTML = `다음 날로 넘기기<br><span>Day ${String(state.day+1).padStart(2,'0')}</span>`;
+  $('nextDayBtn').innerHTML = `${isMarketOpen() ? '장 마감하기' : '다음 장 시작'}<br><span>Day ${String(isMarketOpen()?state.day:state.day+1).padStart(2,'0')}</span>`;
   $('mainHeadline').textContent = state.news[0]?.text || '식품주 방어주 매수세 유입';
 }
 
@@ -278,7 +356,7 @@ function renderChart(){
     ctx.globalAlpha = .42; ctx.fillRect(x-cw/2, h-35-vh, cw, vh); ctx.globalAlpha = 1;
   });
   ctx.fillStyle = '#c8d7ea'; ctx.font = '13px Arial';
-  ctx.fillText('09:00', 8, h-10); ctx.fillText('11:00', w*.28, h-10); ctx.fillText('13:00', w*.58, h-10); ctx.fillText('15:00', w-50, h-10);
+  ctx.fillText('1분', 8, h-10); ctx.fillText('10분', w*.28, h-10); ctx.fillText('1시간', w*.58, h-10); ctx.fillText('1일', w-45, h-10);
 }
 
 function renderOrder(){
@@ -290,7 +368,9 @@ function renderOrder(){
   if(document.activeElement !== $('orderPriceInput')) $('orderPriceInput').value = Math.round(s.price);
   $('buyMode').classList.toggle('active', buyMode);
   $('sellMode').classList.toggle('active', !buyMode);
-  $('submitOrder').textContent = buyMode ? '매수 주문' : '매도 주문';
+  $('submitOrder').textContent = isMarketOpen() ? (buyMode ? '매수 주문' : '매도 주문') : '장 마감';
+  $('submitOrder').disabled = !isMarketOpen();
+  document.body.classList.toggle('market-closed', !isMarketOpen());
   $('submitOrder').style.background = buyMode ? 'linear-gradient(180deg,#e33b40,#a31d25)' : 'linear-gradient(180deg,#286be0,#1648aa)';
   updateOrderTotal();
 }
@@ -320,6 +400,7 @@ function renderPortfolio(){
 function submitOrder(){
   const price = Number($('orderPriceInput').value || 0);
   const qty = Math.floor(Number($('qtyInput').value || 0));
+  if(!isMarketOpen()){ toast('장 마감 후에는 거래할 수 없습니다. 다음 장을 시작하세요.'); return; }
   if(price<=0 || qty<=0){ toast('주문 가격과 수량을 확인하세요.'); return; }
   const s = stock(selectedId); const total = price * qty;
   if(buyMode){
@@ -341,28 +422,64 @@ function submitOrder(){
   render();
 }
 
-function nextDay(){
+function startNewMarketDay(){
   state.day += 1;
-  state.marketTime = '15:30';
+  state.marketStartedAt = Date.now();
+  state.marketTime = '09:00';
+  state.marketOpen = true;
+  state.stocks.forEach(s => { s.prev = s.price; });
   const todays = pickEvents();
   state.events = todays;
   const newNews = todays.map((e,i)=>makeNews(e,i));
-  state.news = [...state.news, ...newNews].slice(-80);
+  state.news = [...state.news, ...newNews].slice(-160);
+  render();
+  startMarketTicker();
+}
+
+function closeMarket(){
+  state.marketTime = '15:30';
+  state.marketOpen = false;
+  state.marketStartedAt = Date.now() - REAL_MARKET_MS;
+  render();
+  toast('오늘 장이 마감되었습니다.');
+}
+
+function nextDay(){
+  if(isMarketOpen()) closeMarket();
+  else startNewMarketDay();
+}
+
+function applyMarketTick(){
+  if(!isMarketOpen()){
+    renderTop();
+    renderOrder();
+    saveGame();
+    return;
+  }
+  state.marketTime = gameClockFromStart(state.marketStartedAt);
+  const elapsedSec = Math.max(1, (Date.now() - lastTickAt) / 1000);
+  lastTickAt = Date.now();
   state.stocks.forEach(s=>{
-    s.prev = s.price;
-    const eventImpact = todays.filter(e=>e.targets.includes(s.id)).reduce((sum,e)=>sum+e.power,0);
-    const random = (Math.random()*2-1)*s.volatility;
-    const jump = Math.max(-0.29, Math.min(0.29, s.drift + random + eventImpact));
+    const eventImpact = (state.events || []).filter(e=>e.targets.includes(s.id) || e.targets.includes('*')).reduce((sum,e)=>sum+e.power,0) / 350;
+    const random = (Math.random()*2-1) * s.volatility / 110;
+    const drift = s.drift / 260;
+    const move = Math.max(-0.035, Math.min(0.035, random + drift + eventImpact));
     const open = s.price;
-    s.price = Math.max(100, Math.round(s.price * (1+jump) / 10) * 10);
-    s.volume = Math.max(10000, Math.round(s.volume * (0.7 + Math.random()*0.8) * (1 + Math.abs(jump)*2)));
+    s.price = Math.max(100, Math.round(s.price * (1+move) / 10) * 10);
+    s.volume = Math.max(10000, Math.round(s.volume * (0.998 + Math.random()*0.008)));
     const close = s.price;
-    const high = Math.max(open, close) * (1 + Math.random()*0.018);
-    const low = Math.min(open, close) * (1 - Math.random()*0.018);
+    const high = Math.max(open, close) * (1 + Math.random()*0.003);
+    const low = Math.min(open, close) * (1 - Math.random()*0.003);
     s.history.push({open, close, high, low, volume: Math.random()*100});
-    if(s.history.length > 80) s.history.shift();
+    if(s.history.length > 260) s.history.shift();
   });
   render();
+}
+
+function startMarketTicker(){
+  if(marketTimer) clearInterval(marketTimer);
+  lastTickAt = Date.now();
+  marketTimer = setInterval(applyMarketTick, TICK_MS);
 }
 
 function pickEvents(){

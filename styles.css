@@ -3,3 +3,13 @@
 .news-item{cursor:pointer;transition:.15s}.news-item:hover{background:rgba(57,117,210,.12);padding-left:4px}.news-item span:nth-child(2){white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.news-archive{display:flex;flex-direction:column;gap:10px;max-height:68vh;overflow:auto;padding-right:4px}.archive-news-item{border:1px solid rgba(142,169,205,.18);background:rgba(7,16,27,.72);border-radius:8px;padding:12px;cursor:pointer}.archive-news-item:hover{background:rgba(57,117,210,.14)}.archive-news-top{display:flex;align-items:center;gap:8px;color:#9fb4ca;font-size:12px;margin-bottom:8px}.archive-news-title{font-size:16px;font-weight:800;color:#eff7ff}.archive-news-body{margin-top:9px;color:#cbd8e7;line-height:1.6;font-size:14px}.news-detail-meta{display:flex;gap:8px;align-items:center;color:#9fb4ca;margin-bottom:12px}.news-detail-body{line-height:1.8;color:#dce9f8}.news-detail-impact{margin-top:14px;padding:10px 12px;border-radius:8px;background:rgba(69,128,210,.13);color:#cfe4ff}.empty-news{color:#9eb1c7;text-align:center;padding:28px 10px}
 
 .modal-card{max-height:88vh;overflow:auto}.news-article{color:#dce9f8}.article-lead{font-size:16px;font-weight:800;color:#f2f7ff;margin:4px 0 14px!important;line-height:1.7}.news-detail-body p{margin:0 0 12px;line-height:1.85;color:#dce9f8}.article-note{margin-top:16px!important;padding-top:12px;border-top:1px solid rgba(151,176,210,.15);color:#9eb1c7!important;font-size:13px}.archive-news-title:after{content:'  자세히 보기';font-size:12px;font-weight:500;color:#8ab7ff}.panel-title #moreNewsBtn{font-weight:800;color:#dcecff}
+
+
+/* v5 layout fixes */
+.summary-grid{grid-template-columns:1.15fr .94fr .94fr 1.05fr 190px;align-items:stretch}
+.summary-card,.goal-card,.next-day{min-height:118px;height:auto;overflow:visible}
+.summary-card{padding:16px 18px 14px}
+.summary-card strong{font-size:26px;margin:10px 0 12px;line-height:1.15;white-space:nowrap}
+.summary-card div{align-items:center;min-height:22px;line-height:1.2;flex-wrap:wrap}
+.summary-card small{white-space:nowrap}.summary-card b{white-space:nowrap}.goal-card strong{margin:8px 0 8px;line-height:1.2}.survival-status{margin-top:10px;min-height:40px}.next-day{line-height:1.35;padding:12px 8px}.stock-table-wrap{max-height:377px;overflow:auto}.stock-table thead th{position:sticky;top:0;z-index:1}.chart-tabs{display:flex;gap:4px}.chart-tabs button{min-width:54px}.submit-order:disabled{opacity:.6;cursor:not-allowed}.market-closed .submit-order{background:linear-gradient(180deg,#4b5563,#1f2937)!important}
+@media(max-width:1180px){.summary-grid{grid-template-columns:1fr}.summary-card,.goal-card,.next-day{min-height:94px}}
