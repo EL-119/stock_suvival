@@ -303,6 +303,7 @@ function renderWatch(){
   $('watchList').querySelectorAll('.watch-remove').forEach(btn=>btn.onclick=(e)=>{
     e.stopPropagation();
     state.watchIds = state.watchIds.filter(id => id !== btn.dataset.removeId);
+    saveGame();
     render();
   });
 }
@@ -316,6 +317,7 @@ function toggleWatch(id){
     state.watchIds.push(id);
     toast(`${stock(id)?.name || '종목'} 관심종목 추가`);
   }
+  saveGame();
   render();
 }
 
@@ -422,7 +424,7 @@ function renderStocks(){
   const pageList = list.slice(start, start + STOCKS_PER_PAGE);
   $('stockTable').innerHTML = pageList.map(s=>`
     <tr data-id="${s.id}" class="${s.id===selectedId?'active':''}">
-      <td><button class="watch-toggle" data-watch-id="${s.id}">${state.watchIds?.includes(s.id)?'★':'☆'}</button> ◆ ${s.name}</td><td>${format(s.price)}</td><td class="${changeAmount(s)>=0?'up':'down'}">${changeAmount(s)>=0?'▲':'▼'} ${format(Math.abs(changeAmount(s)))}</td><td class="${changeRate(s)>=0?'up':'down'}">${pct(changeRate(s))}</td><td>${format(s.volume)}</td>
+      <td><button class="watch-toggle" data-watch-id="${s.id}">${state.watchIds?.includes(s.id)?'★':'☆'}</button> ◆ ${s.name}</td><td data-label="현재가">${format(s.price)}</td><td data-label="전일대비" class="${changeAmount(s)>=0?'up':'down'}">${changeAmount(s)>=0?'▲':'▼'} ${format(Math.abs(changeAmount(s)))}</td><td data-label="등락률" class="${changeRate(s)>=0?'up':'down'}">${pct(changeRate(s))}</td><td data-label="거래량">${format(s.volume)}</td>
     </tr>`).join('');
 
   const end = Math.min(start + STOCKS_PER_PAGE, list.length);

@@ -44,3 +44,19 @@
 @media(max-width:520px){
   .summary-grid{grid-template-columns:1fr}.summary-card,.goal-card,.next-day{min-height:78px}.summary-card div{grid-template-columns:auto auto;justify-content:space-between}.headline-box strong{white-space:normal;line-height:1.35}.stock-table{min-width:590px}.chart-panel canvas{height:200px}.order-title{grid-template-columns:1fr}.order-title strong{font-size:17px}.stepper{grid-template-columns:42px 1fr 42px}.stepper button{height:44px}.stepper input{height:44px}.watch-item{grid-template-columns:26px 1fr 78px 66px;font-size:13px}
 }
+
+/* v11 mobile stock list readability */
+@media(max-width:640px){
+  .stock-table-wrap{overflow:visible;max-height:none}
+  .stock-table{min-width:0;width:100%;border-collapse:separate;border-spacing:0 8px}
+  .stock-table thead{display:none}
+  .stock-table tbody,.stock-table tr,.stock-table td{display:block;width:100%}
+  .stock-table tr{position:relative;background:#0b1828;border:1px solid rgba(120,159,205,.2);border-radius:9px;padding:10px 12px 8px}
+  .stock-table tr.active{background:linear-gradient(90deg,rgba(32,87,168,.5),rgba(12,28,48,.98))}
+  .stock-table td{border:0!important;padding:3px 0!important;text-align:right;font-size:13px;min-height:22px}
+  .stock-table td:first-child{padding:0 0 8px!important;text-align:left;font-size:15px;border-bottom:1px solid rgba(151,176,210,.14)!important;margin-bottom:5px}
+  .stock-table td:not(:first-child)::before{content:attr(data-label);float:left;color:#91a9c4;font-size:12px}
+  .stock-table .watch-toggle{font-size:18px;margin-right:5px}
+  .stock-table td:nth-child(2),.stock-table td:nth-child(3),.stock-table td:nth-child(4),.stock-table td:nth-child(5){display:block}
+  .stock-pager{position:static;margin:0;padding:8px 0 10px;background:transparent}
+}
