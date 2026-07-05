@@ -73,7 +73,8 @@ let currentTab = '전체 종목';
 let buyMode = true;
 let sortByReturn = false;
 let stockPage = 0;
-const STOCKS_PER_PAGE = 8;
+let stockSort = { key: null, dir: 'desc' };
+const STOCKS_PER_PAGE = 6;
 let chartRange = state.chartRange || '1m';
 let marketTimer = null;
 let lastTickAt = 0;
@@ -345,8 +346,40 @@ function showNewsArchive(){
 function changeRate(s){ return (s.price - s.prev) / s.prev * 100; }
 function changeAmount(s){ return s.price - s.prev; }
 
+function sortStockList(list){
+  if(!stockSort.key) return list;
+  const dir = stockSort.dir === 'asc' ? 1 : -1;
+  const value = (s) => {
+    if(stockSort.key === 'price') return s.price;
+    if(stockSort.key === 'change') return changeAmount(s);
+    if(stockSort.key === 'rate') return changeRate(s);
+    if(stockSort.key === 'volume') return s.volume;
+    return 0;
+  };
+  return [...list].sort((a,b)=>{
+    const diff = value(a) - value(b);
+    if(diff === 0) return a.name.localeCompare(b.name, 'ko-KR');
+    return diff * dir;
+  });
+}
+
+function sortArrow(key){
+  if(stockSort.key !== key) return '';
+  return stockSort.dir === 'asc' ? ' ▲' : ' ▼';
+}
+
+function updateStockHeaderSortUI(){
+  document.querySelectorAll('.stock-table thead th[data-sort]').forEach(th=>{
+    const label = th.dataset.label || th.textContent.replace(/[▲▼]/g,'').trim();
+    th.dataset.label = label;
+    th.textContent = label + sortArrow(th.dataset.sort);
+    th.classList.toggle('sorted', stockSort.key === th.dataset.sort);
+  });
+}
+
 function renderStocks(){
-  const list = state.stocks.filter(s => currentTab==='전체 종목' || s.category===currentTab);
+  let list = state.stocks.filter(s => currentTab==='전체 종목' || s.category===currentTab);
+  list = sortStockList(list);
   const totalPages = Math.max(1, Math.ceil(list.length / STOCKS_PER_PAGE));
   if(stockPage >= totalPages) stockPage = totalPages - 1;
   if(stockPage < 0) stockPage = 0;
@@ -359,6 +392,7 @@ function renderStocks(){
 
   const end = Math.min(start + STOCKS_PER_PAGE, list.length);
   $('stockPageInfo').textContent = `${currentTab} ${list.length ? start + 1 : 0}-${end} / ${list.length} · ${stockPage + 1}/${totalPages}쪽`;
+  updateStockHeaderSortUI();
   $('stockPrevBtn').disabled = stockPage <= 0;
   $('stockNextBtn').disabled = stockPage >= totalPages - 1;
   $('stockPrevBtn').onclick = () => { if(stockPage > 0){ stockPage--; render(); } };
@@ -601,6 +635,20 @@ $('modalClose').onclick=()=> $('modal').classList.remove('show');
 $('modal').onclick=e=>{ if(e.target.id==='modal') $('modal').classList.remove('show'); };
 $('sortBtn').onclick=()=>{sortByReturn=!sortByReturn; $('sortBtn').textContent = sortByReturn ? '기본순' : '수익률순'; renderWatch();};
 $('moreNewsBtn').onclick=showNewsArchive;
+
+document.querySelectorAll('.stock-table thead th[data-sort]').forEach(th=>{
+  th.onclick = () => {
+    const key = th.dataset.sort;
+    if(stockSort.key === key){
+      stockSort.dir = stockSort.dir === 'desc' ? 'asc' : 'desc';
+    }else{
+      stockSort.key = key;
+      stockSort.dir = 'desc';
+    }
+    stockPage = 0;
+    renderStocks();
+  };
+});
 document.querySelectorAll('#chartTabs button').forEach(btn=>btn.onclick=()=>{ chartRange = btn.dataset.range; renderChart(); saveGame(); });
 $('hintBtn').onclick=()=>toast('뉴스 이벤트는 다음 날 가격 변동에 영향을 줍니다.');
 $('priceDown').onclick=()=>{$('orderPriceInput').value=Math.max(10,Number($('orderPriceInput').value)-10);updateOrderTotal();};
