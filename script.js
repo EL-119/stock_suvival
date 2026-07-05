@@ -1,7 +1,7 @@
 const START_CASH = 10000000;
 const GOAL = 100000000;
 const MAX_DAY = 30;
-const storageKey = 'antStockSurvivalV1';
+const storageKey = 'antStockSurvivalV3';
 
 const categories = ['전체 종목', '주식', '바이오', 'IT', '에너지', '게임/기타'];
 const initialStocks = [
@@ -152,7 +152,7 @@ function renderTop(){
   $('goalProgress').style.width = `${gp}%`;
   $('goalPercent').textContent = `${gp.toFixed(2)}%`;
   $('nextDayBtn').innerHTML = state.day >= MAX_DAY ? '최종 결과 보기<br><span>Result</span>' : `다음 날로 넘기기<br><span>Day ${String(state.day+1).padStart(2,'0')}</span>`;
-  $('mainHeadline').textContent = state.news[0]?.text || '반도체 지원 정책 기대감에 관련주 강세';
+  $('mainHeadline').textContent = state.news[0]?.text || '식품주 방어주 매수세 유입';
 }
 
 function renderWatch(){
@@ -187,17 +187,40 @@ function showNewsDetail(id){
   const n = state.news.find(x=>x.id===id) || samples.find(x=>x.id===id);
   if(!n) return;
   const targetNames = (n.targets || []).map(id=>stock(id)?.name).filter(Boolean).join(', ');
-  showModal(n.title || n.text, `<div class="news-detail-meta"><span>Day ${String(n.day).padStart(2,'0')}</span><span>${n.date}</span><span>${n.time}</span><b class="tag ${newsTagClass(n.tag)}">${n.tag}</b></div><div class="news-detail-body">${n.body}</div>${targetNames ? `<div class="news-detail-impact">영향 가능 종목: ${targetNames}</div>` : ''}`);
+  const articleBody = buildArticleBody(n);
+  showModal(n.title || n.text, `
+    <article class="news-article">
+      <div class="news-detail-meta"><span>Day ${String(n.day).padStart(2,'0')}</span><span>${n.date}</span><span>${n.time}</span><b class="tag ${newsTagClass(n.tag)}">${n.tag}</b></div>
+      <p class="article-lead">${articleBody.lead}</p>
+      <div class="news-detail-body">${articleBody.body}</div>
+      ${targetNames ? `<div class="news-detail-impact">영향 가능 종목: ${targetNames}</div>` : ''}
+      <p class="article-note">이 기사는 게임 내 가상 뉴스이며, 다음 날 가격 변동 이벤트에 영향을 줄 수 있습니다.</p>
+    </article>`);
+}
+
+function buildArticleBody(n){
+  const title = n.title || n.text || '시장 뉴스';
+  const base = n.body || '상세 내용이 아직 준비되지 않은 뉴스입니다.';
+  const targetNames = (n.targets || []).map(id=>stock(id)?.name).filter(Boolean).join(', ');
+  const tone = n.tag === '호재' ? '매수 심리 개선' : n.tag === '악재' ? '투자 심리 위축' : '관망세 확대';
+  const lead = `${title} 소식이 전해지며 시장 참여자들의 관심이 커지고 있습니다.`;
+  const body = `
+    <p>${base}</p>
+    <p>시장에서는 이번 이슈가 단기적으로 ${tone}으로 이어질 수 있다고 보고 있습니다. 다만 장중 수급과 전일 상승폭에 따라 실제 주가 반응은 달라질 수 있습니다.</p>
+    ${targetNames ? `<p>관련 종목으로는 ${targetNames} 등이 거론됩니다. 해당 종목은 뉴스 영향으로 다음 거래일 변동성이 커질 수 있습니다.</p>` : ''}
+    <p>투자자는 보유 현금과 손절 기준을 함께 확인하면서 무리한 몰빵 매수보다는 분할 매수와 분산 투자를 고려할 필요가 있습니다.</p>
+  `;
+  return {lead, body};
 }
 
 function showNewsArchive(){
   ensureNewsArchive();
   if(!state.news.length){
-    showModal('뉴스 모아보기', '<p class="empty-news">아직 저장된 뉴스가 없습니다. 다음 날로 넘기면 뉴스가 누적됩니다.</p>');
+    showModal('뉴스 전체보기', '<p class="empty-news">아직 저장된 뉴스가 없습니다. 다음 날로 넘기면 뉴스가 누적됩니다.</p>');
     return;
   }
   const html = `<div class="news-archive">${[...state.news].reverse().map(n=>`<div class="archive-news-item" data-news-id="${n.id}"><div class="archive-news-top"><span>Day ${String(n.day).padStart(2,'0')}</span><span>${n.date}</span><span>${n.time}</span><b class="tag ${newsTagClass(n.tag)}">${n.tag}</b></div><div class="archive-news-title">${n.title || n.text}</div><div class="archive-news-body">${(n.body || '').slice(0,90)}${(n.body || '').length > 90 ? '...' : ''}</div></div>`).join('')}</div>`;
-  showModal('뉴스 모아보기', html);
+  showModal('뉴스 전체보기', html);
   $('modalBody').querySelectorAll('.archive-news-item').forEach(row=>row.onclick=()=>showNewsDetail(row.dataset.newsId));
 }
 
