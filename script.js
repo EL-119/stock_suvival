@@ -1,5 +1,5 @@
 const START_CASH = 10000000;
-const storageKey = 'antStockSurvivalV10';
+const storageKey = 'antStockSurvivalV12';
 const MARKET_OPEN_MIN = 9 * 60;
 const MARKET_CLOSE_MIN = 15 * 60 + 30;
 const MARKET_TOTAL_MIN = MARKET_CLOSE_MIN - MARKET_OPEN_MIN;
@@ -129,7 +129,7 @@ function normalizeCandleHistory(st){
 
 function loadGame(){
   try{
-    const saved = JSON.parse(localStorage.getItem(storageKey)) || JSON.parse(localStorage.getItem('antStockSurvivalV8')) || JSON.parse(localStorage.getItem('antStockSurvivalV7')) || JSON.parse(localStorage.getItem('antStockSurvivalV6')) || JSON.parse(localStorage.getItem('antStockSurvivalV5')) || JSON.parse(localStorage.getItem('antStockSurvivalV4')) || JSON.parse(localStorage.getItem('antStockSurvivalV3'));
+    const saved = JSON.parse(localStorage.getItem(storageKey)) || JSON.parse(localStorage.getItem('antStockSurvivalV11')) || JSON.parse(localStorage.getItem('antStockSurvivalV10')) || JSON.parse(localStorage.getItem('antStockSurvivalV9')) || JSON.parse(localStorage.getItem('antStockSurvivalV8')) || JSON.parse(localStorage.getItem('antStockSurvivalV7')) || JSON.parse(localStorage.getItem('antStockSurvivalV6')) || JSON.parse(localStorage.getItem('antStockSurvivalV5')) || JSON.parse(localStorage.getItem('antStockSurvivalV4')) || JSON.parse(localStorage.getItem('antStockSurvivalV3'));
     if(saved && saved.stocks && saved.portfolio){
       const byId = new Map(saved.stocks.map(x => [x.id, x]));
       const merged = initialStocks.map(base => {
@@ -162,12 +162,17 @@ function loadGame(){
   return { day:1, cash:START_CASH, stocks, portfolio:{}, news:[], events:[], selectedId:'samsung', watchIds:['samsung','bio','energy','coin','dividend'], chartRange:'1m', logs:[], startedAt:Date.now(), marketStartedAt:Date.now(), marketTime:'09:00', marketOpen:true };
 }
 
-function saveGame(){
-  if(!state.marketTime) state.marketTime = marketTime();
+function persistGame(){
   state.selectedId = selectedId;
   state.chartRange = chartRange;
   localStorage.setItem(storageKey, JSON.stringify(state));
-  $('saveText').textContent = '자동 저장됨';
+}
+
+function saveGame(){
+  if(!state.marketTime) state.marketTime = marketTime();
+  persistGame();
+  const saveEl = $('saveText');
+  if(saveEl) saveEl.textContent = '자동 저장됨';
 }
 
 function stock(id){ return state.stocks.find(s => s.id === id); }
@@ -186,10 +191,14 @@ function toClock(totalMin){
   return `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}`;
 }
 
-function gameClockFromStart(startedAt){
+function gameMinuteFromStart(startedAt){
   const elapsed = Math.max(0, Date.now() - startedAt);
-  const gameMin = Math.min(MARKET_TOTAL_MIN, Math.floor(elapsed / REAL_MARKET_MS * MARKET_TOTAL_MIN));
-  return toClock(MARKET_OPEN_MIN + gameMin);
+  const gameMin = Math.min(MARKET_TOTAL_MIN, elapsed / REAL_MARKET_MS * MARKET_TOTAL_MIN);
+  return MARKET_OPEN_MIN + gameMin;
+}
+
+function gameClockFromStart(startedAt){
+  return toClock(Math.floor(gameMinuteFromStart(startedAt)));
 }
 
 function isMarketOpen(){
@@ -309,16 +318,29 @@ function renderWatch(){
 }
 
 function toggleWatch(id){
+  if(!id) return;
   if(!Array.isArray(state.watchIds)) state.watchIds = [];
+  const target = stock(id);
   if(state.watchIds.includes(id)){
     state.watchIds = state.watchIds.filter(x => x !== id);
-    toast(`${stock(id)?.name || '종목'} 관심종목 해제`);
+    toast(`${target?.name || '종목'} 관심종목 해제`);
   }else{
-    state.watchIds.push(id);
-    toast(`${stock(id)?.name || '종목'} 관심종목 추가`);
+    state.watchIds = [...state.watchIds, id];
+    toast(`${target?.name || '종목'} 관심종목 추가`);
   }
-  saveGame();
-  render();
+  persistGame();
+  updateWatchButtons();
+  renderWatch();
+  renderStocks();
+}
+
+function updateWatchButtons(){
+  document.querySelectorAll('.watch-toggle').forEach(btn=>{
+    const id = btn.dataset.watchId;
+    btn.textContent = state.watchIds?.includes(id) ? '★' : '☆';
+    btn.classList.toggle('active', state.watchIds?.includes(id));
+    btn.setAttribute('aria-pressed', state.watchIds?.includes(id) ? 'true' : 'false');
+  });
 }
 
 function renderNews(){
@@ -435,18 +457,35 @@ function renderStocks(){
   $('stockPrevBtn').onclick = () => { if(stockPage > 0){ stockPage--; render(); } };
   $('stockNextBtn').onclick = () => { if(stockPage < totalPages - 1){ stockPage++; render(); } };
 
-  $('stockTable').querySelectorAll('tr').forEach(row=>row.onclick=(e)=>{ if(e.target.dataset.watchId) return; selectedId=row.dataset.id; render();});
-  $('stockTable').querySelectorAll('.watch-toggle').forEach(btn=>btn.onclick=(e)=>{ e.stopPropagation(); toggleWatch(btn.dataset.watchId); });
+  updateWatchButtons();
+  const table = $('stockTable');
+  table.onclick = (e)=>{
+    const watchBtn = e.target.closest('.watch-toggle');
+    if(watchBtn){
+      e.preventDefault();
+      e.stopPropagation();
+      toggleWatch(watchBtn.dataset.watchId);
+      return;
+    }
+    const row = e.target.closest('tr[data-id]');
+    if(row){
+      selectedId = row.dataset.id;
+      render();
+    }
+  };
 }
 
 function getCurrentGameMinute(){
-  const mt = marketTime().split(':').map(Number);
+  if(state.marketStartedAt && state.marketOpen !== false){
+    return gameMinuteFromStart(state.marketStartedAt);
+  }
+  const mt = (state.marketTime || marketTime()).split(':').map(Number);
   return mt[0] * 60 + mt[1];
 }
 
 function aggregateCandles(history, bucketMin){
   const currentMin = getCurrentGameMinute();
-  let filtered = history.filter(d => (d.gameMin || MARKET_OPEN_MIN) <= currentMin);
+  let filtered = history.filter(d => Number(d.gameMin || MARKET_OPEN_MIN) <= currentMin + 0.001).sort((a,b)=>Number(a.gameMin||0)-Number(b.gameMin||0));
   if(!filtered.length) filtered = history.slice(-1);
   if(bucketMin <= 1) return filtered.slice(-80);
   const buckets = new Map();
@@ -608,6 +647,7 @@ function applyClockTick(){
   state.marketOpen = state.marketTime < '15:30';
   renderTop();
   renderOrder();
+  renderChart();
 }
 
 function applyMarketTick(){
@@ -685,7 +725,7 @@ $('buyMode').onclick=()=>{buyMode=true; renderOrder();};
 $('sellMode').onclick=()=>{buyMode=false; renderOrder();};
 $('submitOrder').onclick=submitOrder;
 $('nextDayBtn').onclick=nextDay;
-$('resetBtn').onclick=()=>{ if(confirm('게임을 초기화할까요?')){ ['antStockSurvivalV10','antStockSurvivalV9','antStockSurvivalV8','antStockSurvivalV7','antStockSurvivalV6','antStockSurvivalV5','antStockSurvivalV4','antStockSurvivalV3'].forEach(k=>localStorage.removeItem(k)); location.reload(); } };
+$('resetBtn').onclick=()=>{ if(confirm('게임을 초기화할까요?')){ ['antStockSurvivalV12','antStockSurvivalV11','antStockSurvivalV10','antStockSurvivalV9','antStockSurvivalV8','antStockSurvivalV7','antStockSurvivalV6','antStockSurvivalV5','antStockSurvivalV4','antStockSurvivalV3'].forEach(k=>localStorage.removeItem(k)); location.reload(); } };
 $('guideBtn').onclick=showGuide;
 $('rankBtn').onclick=showRank;
 $('modalClose').onclick=()=> $('modal').classList.remove('show');
