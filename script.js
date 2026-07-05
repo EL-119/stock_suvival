@@ -1,5 +1,5 @@
 const START_CASH = 10000000;
-const storageKey = 'antStockSurvivalV7';
+const storageKey = 'antStockSurvivalV9';
 const MARKET_OPEN_MIN = 9 * 60;
 const MARKET_CLOSE_MIN = 15 * 60 + 30;
 const MARKET_TOTAL_MIN = MARKET_CLOSE_MIN - MARKET_OPEN_MIN;
@@ -98,9 +98,31 @@ function createHistory(base){
   return arr;
 }
 
+
+function normalizeCandleHistory(st){
+  let history = Array.isArray(st.history) ? st.history : [];
+  history = history.map((d,i)=>{
+    const fallback = Number(st.price || st.prev || 1000);
+    const open = Number.isFinite(Number(d.open)) ? Number(d.open) : fallback;
+    const close = Number.isFinite(Number(d.close)) ? Number(d.close) : open;
+    const high = Math.max(Number.isFinite(Number(d.high)) ? Number(d.high) : Math.max(open, close), open, close);
+    const low = Math.min(Number.isFinite(Number(d.low)) ? Number(d.low) : Math.min(open, close), open, close);
+    const volume = Math.max(1, Number.isFinite(Number(d.volume)) ? Number(d.volume) : Math.random()*100);
+    const gameMin = Number.isFinite(Number(d.gameMin)) ? Number(d.gameMin) : Math.max(MARKET_OPEN_MIN, MARKET_CLOSE_MIN - history.length + i);
+    return {open, close, high, low, volume, gameMin};
+  });
+  const reds = history.filter(d => d.close > d.open).length;
+  const blues = history.filter(d => d.close < d.open).length;
+  if(history.length < 12 || reds === 0 || blues === 0){
+    history = createHistory(Number(st.price || st.prev || 1000));
+  }
+  st.history = history;
+  return st;
+}
+
 function loadGame(){
   try{
-    const saved = JSON.parse(localStorage.getItem(storageKey)) || JSON.parse(localStorage.getItem('antStockSurvivalV6')) || JSON.parse(localStorage.getItem('antStockSurvivalV5')) || JSON.parse(localStorage.getItem('antStockSurvivalV4')) || JSON.parse(localStorage.getItem('antStockSurvivalV3'));
+    const saved = JSON.parse(localStorage.getItem(storageKey)) || JSON.parse(localStorage.getItem('antStockSurvivalV8')) || JSON.parse(localStorage.getItem('antStockSurvivalV7')) || JSON.parse(localStorage.getItem('antStockSurvivalV6')) || JSON.parse(localStorage.getItem('antStockSurvivalV5')) || JSON.parse(localStorage.getItem('antStockSurvivalV4')) || JSON.parse(localStorage.getItem('antStockSurvivalV3'));
     if(saved && saved.stocks && saved.portfolio){
       const byId = new Map(saved.stocks.map(x => [x.id, x]));
       const merged = initialStocks.map(base => {
@@ -109,8 +131,8 @@ function loadGame(){
           old.category = old.category || base.category;
           old.volatility = old.volatility || base.volatility;
           old.drift = old.drift || base.drift;
-          old.history = Array.isArray(old.history) && old.history.length ? old.history.map((d,i)=>({...d, gameMin:d.gameMin || Math.max(MARKET_OPEN_MIN, MARKET_CLOSE_MIN - old.history.length + i)})) : createHistory(old.price || base.price);
-          return old;
+          old.history = Array.isArray(old.history) && old.history.length ? old.history : createHistory(old.price || base.price);
+          return normalizeCandleHistory(old);
         }
         return {...base, history:createHistory(base.price)};
       });
@@ -123,7 +145,7 @@ function loadGame(){
       return saved;
     }
   }catch(e){}
-  const stocks = initialStocks.map(s => ({...s, history:createHistory(s.price)}));
+  const stocks = initialStocks.map(s => normalizeCandleHistory({...s, history:createHistory(s.price)}));
   return { day:1, cash:START_CASH, stocks, portfolio:{}, news:[], events:[], selectedId:'samsung', watchIds:['samsung','bio','energy','coin','dividend'], chartRange:'1m', logs:[], startedAt:Date.now(), marketStartedAt:Date.now(), marketTime:'09:00', marketOpen:true };
 }
 
@@ -628,7 +650,7 @@ $('buyMode').onclick=()=>{buyMode=true; renderOrder();};
 $('sellMode').onclick=()=>{buyMode=false; renderOrder();};
 $('submitOrder').onclick=submitOrder;
 $('nextDayBtn').onclick=nextDay;
-$('resetBtn').onclick=()=>{ if(confirm('게임을 초기화할까요?')){ ['antStockSurvivalV7','antStockSurvivalV6','antStockSurvivalV5','antStockSurvivalV4','antStockSurvivalV3'].forEach(k=>localStorage.removeItem(k)); location.reload(); } };
+$('resetBtn').onclick=()=>{ if(confirm('게임을 초기화할까요?')){ ['antStockSurvivalV9','antStockSurvivalV8','antStockSurvivalV7','antStockSurvivalV6','antStockSurvivalV5','antStockSurvivalV4','antStockSurvivalV3'].forEach(k=>localStorage.removeItem(k)); location.reload(); } };
 $('guideBtn').onclick=showGuide;
 $('rankBtn').onclick=showRank;
 $('modalClose').onclick=()=> $('modal').classList.remove('show');
