@@ -1,7 +1,5 @@
 const START_CASH = 10000000;
-const GOAL = 100000000;
-const MAX_DAY = 30;
-const storageKey = 'antStockSurvivalV3';
+const storageKey = 'antStockSurvivalV4';
 
 const categories = ['전체 종목', '주식', '바이오', 'IT', '에너지', '게임/기타'];
 const initialStocks = [
@@ -55,14 +53,18 @@ function createHistory(base){
 
 function loadGame(){
   try{
-    const saved = JSON.parse(localStorage.getItem(storageKey));
-    if(saved && saved.stocks && saved.portfolio) return saved;
+    const saved = JSON.parse(localStorage.getItem(storageKey)) || JSON.parse(localStorage.getItem('antStockSurvivalV3'));
+    if(saved && saved.stocks && saved.portfolio){
+      if(!saved.marketTime) saved.marketTime = '15:30';
+      return saved;
+    }
   }catch(e){}
   const stocks = initialStocks.map(s => ({...s, history:createHistory(s.price)}));
-  return { day:1, cash:START_CASH, stocks, portfolio:{}, news:[], events:[], selectedId:'samsung', logs:[], startedAt:Date.now() };
+  return { day:1, cash:START_CASH, stocks, portfolio:{}, news:[], events:[], selectedId:'samsung', logs:[], startedAt:Date.now(), marketTime:'09:00' };
 }
 
 function saveGame(){
+  if(!state.marketTime) state.marketTime = marketTime();
   state.selectedId = selectedId;
   localStorage.setItem(storageKey, JSON.stringify(state));
   $('saveText').textContent = '자동 저장됨';
@@ -79,6 +81,13 @@ function todayDate(){
   return d.toISOString().slice(0,10).replaceAll('-','.');
 }
 
+function marketTime(){
+  return state.marketTime || '09:00';
+}
+
+function fullGameDateTime(){
+  return `${todayDate()} ${marketTime()}`;
+}
 
 
 function ensureNewsArchive(){
@@ -87,7 +96,7 @@ function ensureNewsArchive(){
     id: n.id || `news-${state.day}-${idx}-${Date.now()}`,
     day: n.day || state.day,
     date: n.date || todayDate(),
-    time: n.time || '09:00',
+    time: n.time || marketTime(),
     text: n.text || '시장 뉴스',
     title: n.title || n.text || '시장 뉴스',
     body: n.body || '이 뉴스는 이전 버전에서 생성된 기사라 상세 본문이 없습니다. 새로 다음 날로 넘기면 제목과 내용이 함께 저장됩니다.',
@@ -139,7 +148,7 @@ function renderTop(){
   const sv = stockValue(), nw = netWorth(), pf = profit();
   $('dayText').textContent = String(state.day).padStart(2,'0');
   $('dateText').textContent = todayDate();
-  $('sessionText').textContent = state.day >= MAX_DAY ? '최종 정산' : '시장 마감';
+  $('sessionText').textContent = `${marketTime()} ${marketTime() >= '15:30' ? '장 마감' : '장 진행 중'}`;
   $('netWorthText').textContent = `${format(nw)} 원`;
   $('cashText').textContent = `${format(state.cash)} 원`;
   $('stockValueText').textContent = `${format(sv)} 원`;
@@ -148,10 +157,10 @@ function renderTop(){
   const y = pf / START_CASH * 100;
   $('yieldText').textContent = pct(y);
   $('yieldText').className = y>=0?'up':'down';
-  const gp = Math.max(0, Math.min(100, nw / GOAL * 100));
-  $('goalProgress').style.width = `${gp}%`;
-  $('goalPercent').textContent = `${gp.toFixed(2)}%`;
-  $('nextDayBtn').innerHTML = state.day >= MAX_DAY ? '최종 결과 보기<br><span>Result</span>' : `다음 날로 넘기기<br><span>Day ${String(state.day+1).padStart(2,'0')}</span>`;
+  $('survivalDayText').textContent = `${state.day}일차 진행 중`;
+  $('survivalReturnText').textContent = pct(y);
+  $('survivalReturnText').className = y >= 0 ? 'up' : 'down';
+  $('nextDayBtn').innerHTML = `다음 날로 넘기기<br><span>Day ${String(state.day+1).padStart(2,'0')}</span>`;
   $('mainHeadline').textContent = state.news[0]?.text || '식품주 방어주 매수세 유입';
 }
 
@@ -172,7 +181,7 @@ function renderNews(){
     {id:'sample-2', day:state.day, date:todayDate(), time:'10:30', title:'개인 매수세 유입, 중소형주 강세', text:'개인 매수세 유입, 중소형주 강세', body:'개인 투자자의 매수세가 유입되면서 중소형주가 상대적으로 강한 흐름을 보이고 있습니다.', tag:'호재'},
     {id:'sample-3', day:state.day, date:todayDate(), time:'13:15', title:'장 후반 차익실현 매물 출회', text:'장 후반 차익실현 매물 출회', body:'오전에 오른 종목을 중심으로 장 후반 차익실현 매물이 나오고 있습니다.', tag:'악재'}
   ];
-  $('newsList').innerHTML = news.slice(0,5).map(n=>`<div class="news-item" data-news-id="${n.id}"><span class="news-time">${n.time}</span><span>${n.title || n.text}</span><b class="tag ${newsTagClass(n.tag)}">${n.tag}</b></div>`).join('');
+  $('newsList').innerHTML = news.slice(0,5).map(n=>`<div class="news-item" data-news-id="${n.id}"><span class="news-date">${n.date}<br>${n.time}</span><span>${n.title || n.text}</span><b class="tag ${newsTagClass(n.tag)}">${n.tag}</b></div>`).join('');
   $('newsList').querySelectorAll('.news-item').forEach(row=>row.onclick=()=>showNewsDetail(row.dataset.newsId));
   $('eventList').innerHTML = (state.events.length ? state.events : ['오늘은 큰 이벤트가 없습니다','초반에는 분산투자가 안전합니다','급등주는 다음 날 변동성이 큽니다']).map(x=>`<li>${x.text || x}</li>`).join('');
 }
@@ -333,8 +342,8 @@ function submitOrder(){
 }
 
 function nextDay(){
-  if(state.day >= MAX_DAY){ showResult(); return; }
   state.day += 1;
+  state.marketTime = '15:30';
   const todays = pickEvents();
   state.events = todays;
   const newNews = todays.map((e,i)=>makeNews(e,i));
@@ -353,7 +362,6 @@ function nextDay(){
     s.history.push({open, close, high, low, volume: Math.random()*100});
     if(s.history.length > 80) s.history.shift();
   });
-  if(netWorth() >= GOAL) toast('목표 금액에 도달했습니다. 최종 결과를 확인하세요.');
   render();
 }
 
@@ -365,15 +373,14 @@ function pickEvents(){
 function showResult(){
   const nw = netWorth(); const pf = nw - START_CASH; const y = pf/START_CASH*100;
   let grade = '생존 실패';
-  if(nw >= GOAL) grade = '전설의 개미';
-  else if(y >= 100) grade = '고수익 투자자';
+  if(y >= 100) grade = '전설의 개미';
   else if(y >= 20) grade = '침착한 투자자';
   else if(y >= 0) grade = '원금 방어 성공';
   showModal('최종 결과', `<p>최종 자산은 <strong>${format(nw)} 원</strong>입니다.</p><p>총 수익은 <strong class="${pf>=0?'up':'down'}">${pf>=0?'+':''}${format(pf)} 원</strong>, 수익률은 <strong class="${y>=0?'up':'down'}">${pct(y)}</strong>입니다.</p><p>등급은 <strong>${grade}</strong>입니다.</p>`);
 }
 
 function showGuide(){
-  showModal('게임 가이드', '<p>가상 종목을 매수하고 다음 날로 넘기면 뉴스 이벤트에 따라 가격이 변합니다.</p><p>뉴스는 새로고침으로 사라지지 않고 누적되며, 뉴스 제목을 누르면 상세 내용을 볼 수 있습니다.</p><p>30일 안에 총자산 1억 원을 만들면 목표 달성입니다.</p><p>데이터는 브라우저에 자동 저장되며 실제 투자 데이터가 아닌 게임용 가상 데이터입니다.</p>');
+  showModal('게임 가이드', '<p>가상 종목을 매수하고 다음 날로 넘기면 뉴스 이벤트에 따라 가격이 변합니다.</p><p>게임에 기간 제한은 없으며, 목표는 오래 살아남으면서 자산을 지키고 키우는 것입니다.</p><p>상단에서 현재 게임 날짜와 시간을 확인할 수 있고, 각 뉴스에는 발생 날짜와 시간이 함께 저장됩니다.</p><p>뉴스는 새로고침으로 사라지지 않고 누적되며, 뉴스 제목을 누르면 상세 내용을 볼 수 있습니다.</p><p>데이터는 브라우저에 자동 저장되며 실제 투자 데이터가 아닌 게임용 가상 데이터입니다.</p>');
 }
 function showRank(){
   const nw = netWorth();
