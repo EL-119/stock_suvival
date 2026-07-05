@@ -16,16 +16,16 @@ const initialStocks = [
 ];
 
 const eventPool = [
-  { text:'정부, 반도체 산업 지원 확대 검토', targets:['samsung','robot'], power:0.06, tag:'호재' },
-  { text:'미래바이오, 임상 결과 발표 기대감', targets:['bio'], power:0.12, tag:'호재' },
-  { text:'게임코인 거래소 점검 예정', targets:['coin'], power:-0.10, tag:'악재' },
-  { text:'에너지 원가 부담 확대 우려', targets:['energy'], power:-0.07, tag:'악재' },
-  { text:'대한배당, 배당금 5% 상향 발표', targets:['dividend'], power:0.045, tag:'호재' },
-  { text:'로봇 테마주 단기 과열 경고', targets:['robot'], power:-0.06, tag:'악재' },
-  { text:'조선 수주 기대감 확대', targets:['ship'], power:0.07, tag:'호재' },
-  { text:'식품주 방어주 매수세 유입', targets:['food'], power:0.035, tag:'호재' },
-  { text:'시장 전반 관망세, 거래대금 감소', targets:['samsung','bio','energy','coin','dividend','robot','ship','food'], power:-0.025, tag:'악재' },
-  { text:'개인 투자자 순매수 확대', targets:['samsung','bio','energy','coin','dividend','robot','ship','food'], power:0.025, tag:'호재' }
+  { text:'정부, 반도체 산업 지원 확대 검토', body:'정부가 반도체 장비와 AI 서버 관련 세제 지원을 확대하는 방안을 검토한다는 소식이 전해졌습니다. 시장에서는 삼성전자우와 국민로보틱스 같은 IT 관련주에 수급이 몰릴 수 있다고 보고 있습니다.', targets:['samsung','robot'], power:0.06, tag:'호재' },
+  { text:'미래바이오, 임상 결과 발표 기대감', body:'미래바이오가 신약 후보물질 임상 중간 결과를 곧 공개할 수 있다는 기대감이 커졌습니다. 기대감은 강한 상승 재료가 될 수 있지만, 결과 발표 전후로 변동성이 매우 커질 수 있습니다.', targets:['bio'], power:0.12, tag:'호재' },
+  { text:'게임코인 거래소 점검 예정', body:'게임코인의 주요 거래소가 시스템 점검을 예고하면서 단기 거래 위축 우려가 나왔습니다. 일부 투자자는 출금 지연 가능성을 걱정하며 매도세로 대응하고 있습니다.', targets:['coin'], power:-0.10, tag:'악재' },
+  { text:'에너지 원가 부담 확대 우려', body:'국제 원자재 가격 상승으로 에너지 기업의 비용 부담이 커질 수 있다는 분석이 나왔습니다. 한빛에너지는 수익성 둔화 우려로 단기 약세 압력을 받을 수 있습니다.', targets:['energy'], power:-0.07, tag:'악재' },
+  { text:'대한배당, 배당금 5% 상향 발표', body:'대한배당이 올해 배당금을 기존 계획보다 5% 올리겠다고 발표했습니다. 배당 매력이 부각되며 안정형 투자자들의 매수세가 유입될 가능성이 있습니다.', targets:['dividend'], power:0.045, tag:'호재' },
+  { text:'로봇 테마주 단기 과열 경고', body:'최근 로봇 관련주가 빠르게 오르면서 단기 과열 경고가 나왔습니다. 국민로보틱스는 기대감은 유지되지만 차익실현 매물이 나올 수 있는 구간입니다.', targets:['robot'], power:-0.06, tag:'악재' },
+  { text:'조선 수주 기대감 확대', body:'해외 선사의 대형 발주 가능성이 거론되며 조선 업종에 기대감이 붙었습니다. 동해조선은 수주 기대와 함께 거래량이 증가할 가능성이 있습니다.', targets:['ship'], power:0.07, tag:'호재' },
+  { text:'식품주 방어주 매수세 유입', body:'시장 변동성이 커지자 안정적인 실적을 가진 식품주로 방어적 매수세가 유입되고 있습니다. 우리푸드는 큰 급등보다는 완만한 상승 흐름이 기대됩니다.', targets:['food'], power:0.035, tag:'호재' },
+  { text:'시장 전반 관망세, 거래대금 감소', body:'투자자들이 주요 경제지표 발표를 앞두고 관망하는 분위기입니다. 거래대금이 줄면 작은 매도에도 가격이 흔들릴 수 있어 전 종목 변동성 관리가 필요합니다.', targets:['samsung','bio','energy','coin','dividend','robot','ship','food'], power:-0.025, tag:'악재' },
+  { text:'개인 투자자 순매수 확대', body:'개인 투자자의 순매수가 확대되며 시장 전반에 매수 심리가 살아났습니다. 다만 단기 반등 후에는 종목별로 차익실현이 나올 수 있습니다.', targets:['samsung','bio','energy','coin','dividend','robot','ship','food'], power:0.025, tag:'호재' }
 ];
 
 let state = loadGame();
@@ -79,12 +79,51 @@ function todayDate(){
   return d.toISOString().slice(0,10).replaceAll('-','.');
 }
 
+
+
+function ensureNewsArchive(){
+  if(!Array.isArray(state.news)) state.news = [];
+  state.news = state.news.map((n, idx) => ({
+    id: n.id || `news-${state.day}-${idx}-${Date.now()}`,
+    day: n.day || state.day,
+    date: n.date || todayDate(),
+    time: n.time || '09:00',
+    text: n.text || '시장 뉴스',
+    title: n.title || n.text || '시장 뉴스',
+    body: n.body || '이 뉴스는 이전 버전에서 생성된 기사라 상세 본문이 없습니다. 새로 다음 날로 넘기면 제목과 내용이 함께 저장됩니다.',
+    tag: n.tag || '중립',
+    targets: n.targets || []
+  }));
+}
+
+function makeNews(event, index){
+  const times = ['09:05','10:30','13:20','14:50','15:10'];
+  return {
+    id: `news-${state.day}-${index}-${Date.now()}-${Math.floor(Math.random()*9999)}`,
+    day: state.day,
+    date: todayDate(),
+    time: times[index] || '15:10',
+    title: event.text,
+    text: event.text,
+    body: event.body || '상세 내용이 아직 준비되지 않은 뉴스입니다.',
+    tag: event.tag,
+    targets: event.targets || []
+  };
+}
+
+function newsTagClass(tag){
+  if(tag === '악재') return 'bad';
+  if(tag === '호재') return 'good';
+  return 'neutral';
+}
+
 function initTabs(){
   $('tabs').innerHTML = categories.map(c => `<button class="${c===currentTab?'active':''}" data-tab="${c}">${c}</button>`).join('');
   $('tabs').querySelectorAll('button').forEach(btn=>btn.onclick=()=>{currentTab=btn.dataset.tab; render();});
 }
 
 function render(){
+  ensureNewsArchive();
   initTabs();
   renderTop();
   renderWatch();
@@ -127,13 +166,39 @@ function renderWatch(){
 }
 
 function renderNews(){
-  const news = state.news.length ? state.news : [
-    {time:'09:10', text:'개장 직후 테마주 중심 변동성 확대', tag:'주의'},
-    {time:'10:30', text:'개인 매수세 유입, 중소형주 강세', tag:'호재'},
-    {time:'13:15', text:'장 후반 차익실현 매물 출회', tag:'악재'}
+  ensureNewsArchive();
+  const news = state.news.length ? [...state.news].reverse() : [
+    {id:'sample-1', day:state.day, date:todayDate(), time:'09:10', title:'개장 직후 테마주 중심 변동성 확대', text:'개장 직후 테마주 중심 변동성 확대', body:'장 초반에는 거래량이 적은 종목일수록 작은 매수와 매도에도 가격 변동이 크게 나타날 수 있습니다.', tag:'주의'},
+    {id:'sample-2', day:state.day, date:todayDate(), time:'10:30', title:'개인 매수세 유입, 중소형주 강세', text:'개인 매수세 유입, 중소형주 강세', body:'개인 투자자의 매수세가 유입되면서 중소형주가 상대적으로 강한 흐름을 보이고 있습니다.', tag:'호재'},
+    {id:'sample-3', day:state.day, date:todayDate(), time:'13:15', title:'장 후반 차익실현 매물 출회', text:'장 후반 차익실현 매물 출회', body:'오전에 오른 종목을 중심으로 장 후반 차익실현 매물이 나오고 있습니다.', tag:'악재'}
   ];
-  $('newsList').innerHTML = news.slice(0,5).map(n=>`<div class="news-item"><span class="news-time">${n.time}</span><span>${n.text}</span><b class="tag ${n.tag==='악재'?'bad':'good'}">${n.tag}</b></div>`).join('');
+  $('newsList').innerHTML = news.slice(0,5).map(n=>`<div class="news-item" data-news-id="${n.id}"><span class="news-time">${n.time}</span><span>${n.title || n.text}</span><b class="tag ${newsTagClass(n.tag)}">${n.tag}</b></div>`).join('');
+  $('newsList').querySelectorAll('.news-item').forEach(row=>row.onclick=()=>showNewsDetail(row.dataset.newsId));
   $('eventList').innerHTML = (state.events.length ? state.events : ['오늘은 큰 이벤트가 없습니다','초반에는 분산투자가 안전합니다','급등주는 다음 날 변동성이 큽니다']).map(x=>`<li>${x.text || x}</li>`).join('');
+}
+
+function showNewsDetail(id){
+  ensureNewsArchive();
+  const samples = [
+    {id:'sample-1', day:state.day, date:todayDate(), time:'09:10', title:'개장 직후 테마주 중심 변동성 확대', body:'장 초반에는 거래량이 적은 종목일수록 작은 매수와 매도에도 가격 변동이 크게 나타날 수 있습니다.', tag:'주의'},
+    {id:'sample-2', day:state.day, date:todayDate(), time:'10:30', title:'개인 매수세 유입, 중소형주 강세', body:'개인 투자자의 매수세가 유입되면서 중소형주가 상대적으로 강한 흐름을 보이고 있습니다.', tag:'호재'},
+    {id:'sample-3', day:state.day, date:todayDate(), time:'13:15', title:'장 후반 차익실현 매물 출회', body:'오전에 오른 종목을 중심으로 장 후반 차익실현 매물이 나오고 있습니다.', tag:'악재'}
+  ];
+  const n = state.news.find(x=>x.id===id) || samples.find(x=>x.id===id);
+  if(!n) return;
+  const targetNames = (n.targets || []).map(id=>stock(id)?.name).filter(Boolean).join(', ');
+  showModal(n.title || n.text, `<div class="news-detail-meta"><span>Day ${String(n.day).padStart(2,'0')}</span><span>${n.date}</span><span>${n.time}</span><b class="tag ${newsTagClass(n.tag)}">${n.tag}</b></div><div class="news-detail-body">${n.body}</div>${targetNames ? `<div class="news-detail-impact">영향 가능 종목: ${targetNames}</div>` : ''}`);
+}
+
+function showNewsArchive(){
+  ensureNewsArchive();
+  if(!state.news.length){
+    showModal('뉴스 모아보기', '<p class="empty-news">아직 저장된 뉴스가 없습니다. 다음 날로 넘기면 뉴스가 누적됩니다.</p>');
+    return;
+  }
+  const html = `<div class="news-archive">${[...state.news].reverse().map(n=>`<div class="archive-news-item" data-news-id="${n.id}"><div class="archive-news-top"><span>Day ${String(n.day).padStart(2,'0')}</span><span>${n.date}</span><span>${n.time}</span><b class="tag ${newsTagClass(n.tag)}">${n.tag}</b></div><div class="archive-news-title">${n.title || n.text}</div><div class="archive-news-body">${(n.body || '').slice(0,90)}${(n.body || '').length > 90 ? '...' : ''}</div></div>`).join('')}</div>`;
+  showModal('뉴스 모아보기', html);
+  $('modalBody').querySelectorAll('.archive-news-item').forEach(row=>row.onclick=()=>showNewsDetail(row.dataset.newsId));
 }
 
 function changeRate(s){ return (s.price - s.prev) / s.prev * 100; }
@@ -249,7 +314,8 @@ function nextDay(){
   state.day += 1;
   const todays = pickEvents();
   state.events = todays;
-  state.news = todays.map((e,i)=>({time:['09:05','10:30','13:20'][i] || '14:50', text:e.text, tag:e.tag}));
+  const newNews = todays.map((e,i)=>makeNews(e,i));
+  state.news = [...state.news, ...newNews].slice(-80);
   state.stocks.forEach(s=>{
     s.prev = s.price;
     const eventImpact = todays.filter(e=>e.targets.includes(s.id)).reduce((sum,e)=>sum+e.power,0);
@@ -284,7 +350,7 @@ function showResult(){
 }
 
 function showGuide(){
-  showModal('게임 가이드', '<p>가상 종목을 매수하고 다음 날로 넘기면 뉴스 이벤트에 따라 가격이 변합니다.</p><p>30일 안에 총자산 1억 원을 만들면 목표 달성입니다.</p><p>데이터는 브라우저에 자동 저장되며 실제 투자 데이터가 아닌 게임용 가상 데이터입니다.</p>');
+  showModal('게임 가이드', '<p>가상 종목을 매수하고 다음 날로 넘기면 뉴스 이벤트에 따라 가격이 변합니다.</p><p>뉴스는 새로고침으로 사라지지 않고 누적되며, 뉴스 제목을 누르면 상세 내용을 볼 수 있습니다.</p><p>30일 안에 총자산 1억 원을 만들면 목표 달성입니다.</p><p>데이터는 브라우저에 자동 저장되며 실제 투자 데이터가 아닌 게임용 가상 데이터입니다.</p>');
 }
 function showRank(){
   const nw = netWorth();
@@ -306,7 +372,7 @@ $('rankBtn').onclick=showRank;
 $('modalClose').onclick=()=> $('modal').classList.remove('show');
 $('modal').onclick=e=>{ if(e.target.id==='modal') $('modal').classList.remove('show'); };
 $('sortBtn').onclick=()=>{sortByReturn=!sortByReturn; $('sortBtn').textContent = sortByReturn ? '기본순' : '수익률순'; renderWatch();};
-$('moreNewsBtn').onclick=()=>{state.news = pickEvents().map((e,i)=>({time:['09:40','11:20','14:10'][i], text:e.text, tag:e.tag})); renderNews(); saveGame();};
+$('moreNewsBtn').onclick=showNewsArchive;
 $('hintBtn').onclick=()=>toast('뉴스 이벤트는 다음 날 가격 변동에 영향을 줍니다.');
 $('priceDown').onclick=()=>{$('orderPriceInput').value=Math.max(10,Number($('orderPriceInput').value)-10);updateOrderTotal();};
 $('priceUp').onclick=()=>{$('orderPriceInput').value=Number($('orderPriceInput').value)+10;updateOrderTotal();};
