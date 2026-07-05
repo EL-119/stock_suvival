@@ -1,5 +1,5 @@
 const START_CASH = 10000000;
-const storageKey = 'antStockSurvivalV5';
+const storageKey = 'antStockSurvivalV7';
 const MARKET_OPEN_MIN = 9 * 60;
 const MARKET_CLOSE_MIN = 15 * 60 + 30;
 const MARKET_TOTAL_MIN = MARKET_CLOSE_MIN - MARKET_OPEN_MIN;
@@ -74,6 +74,7 @@ let buyMode = true;
 let sortByReturn = false;
 let stockPage = 0;
 const STOCKS_PER_PAGE = 8;
+let chartRange = state.chartRange || '1m';
 let marketTimer = null;
 let lastTickAt = 0;
 
@@ -90,7 +91,7 @@ function createHistory(base){
     const close = Math.max(100, open * (1 + change));
     const high = Math.max(open, close) * (1 + Math.random()*0.01);
     const low = Math.min(open, close) * (1 - Math.random()*0.01);
-    arr.push({open, close, high, low, volume: Math.random()*100});
+    arr.push({open, close, high, low, volume: Math.random()*100, gameMin: Math.max(MARKET_OPEN_MIN, MARKET_CLOSE_MIN - (42-i))});
     price = close;
   }
   return arr;
@@ -98,7 +99,7 @@ function createHistory(base){
 
 function loadGame(){
   try{
-    const saved = JSON.parse(localStorage.getItem(storageKey)) || JSON.parse(localStorage.getItem('antStockSurvivalV4')) || JSON.parse(localStorage.getItem('antStockSurvivalV3'));
+    const saved = JSON.parse(localStorage.getItem(storageKey)) || JSON.parse(localStorage.getItem('antStockSurvivalV6')) || JSON.parse(localStorage.getItem('antStockSurvivalV5')) || JSON.parse(localStorage.getItem('antStockSurvivalV4')) || JSON.parse(localStorage.getItem('antStockSurvivalV3'));
     if(saved && saved.stocks && saved.portfolio){
       const byId = new Map(saved.stocks.map(x => [x.id, x]));
       const merged = initialStocks.map(base => {
@@ -107,25 +108,28 @@ function loadGame(){
           old.category = old.category || base.category;
           old.volatility = old.volatility || base.volatility;
           old.drift = old.drift || base.drift;
-          old.history = Array.isArray(old.history) && old.history.length ? old.history : createHistory(old.price || base.price);
+          old.history = Array.isArray(old.history) && old.history.length ? old.history.map((d,i)=>({...d, gameMin:d.gameMin || Math.max(MARKET_OPEN_MIN, MARKET_CLOSE_MIN - old.history.length + i)})) : createHistory(old.price || base.price);
           return old;
         }
         return {...base, history:createHistory(base.price)};
       });
       saved.stocks = merged;
       if(!saved.marketStartedAt) saved.marketStartedAt = Date.now();
+      if(!Array.isArray(saved.watchIds)) saved.watchIds = ['samsung','bio','energy','coin','dividend'].filter(id=>merged.some(s=>s.id===id));
+      saved.chartRange = saved.chartRange || '1m';
       saved.marketTime = gameClockFromStart(saved.marketStartedAt);
       saved.marketOpen = saved.marketTime < '15:30';
       return saved;
     }
   }catch(e){}
   const stocks = initialStocks.map(s => ({...s, history:createHistory(s.price)}));
-  return { day:1, cash:START_CASH, stocks, portfolio:{}, news:[], events:[], selectedId:'samsung', logs:[], startedAt:Date.now(), marketStartedAt:Date.now(), marketTime:'09:00', marketOpen:true };
+  return { day:1, cash:START_CASH, stocks, portfolio:{}, news:[], events:[], selectedId:'samsung', watchIds:['samsung','bio','energy','coin','dividend'], chartRange:'1m', logs:[], startedAt:Date.now(), marketStartedAt:Date.now(), marketTime:'09:00', marketOpen:true };
 }
 
 function saveGame(){
   if(!state.marketTime) state.marketTime = marketTime();
   state.selectedId = selectedId;
+  state.chartRange = chartRange;
   localStorage.setItem(storageKey, JSON.stringify(state));
   $('saveText').textContent = '자동 저장됨';
 }
@@ -245,13 +249,38 @@ function renderTop(){
 }
 
 function renderWatch(){
-  let list = [...state.stocks];
+  if(!Array.isArray(state.watchIds)) state.watchIds = ['samsung','bio','energy','coin','dividend'];
+  let list = state.watchIds.map(id => stock(id)).filter(Boolean);
   if(sortByReturn) list.sort((a,b)=> changeRate(b)-changeRate(a));
-  $('watchList').innerHTML = list.slice(0,5).map(s=>`
+  if(!list.length){
+    $('watchList').innerHTML = '<div class="watch-empty">관심 종목이 없습니다.<br>전체종목 표의 ☆ 버튼으로 추가하세요.</div>';
+    return;
+  }
+  $('watchList').innerHTML = list.map(s=>`
     <div class="watch-item" data-id="${s.id}">
-      <span class="star">★</span><span class="stock-name">${s.name}</span><span>${format(s.price)}</span><span class="${changeRate(s)>=0?'up':'down'}">${pct(changeRate(s))}</span>
+      <button class="watch-remove" data-remove-id="${s.id}" title="관심종목 해제">★</button><span class="stock-name">${s.name}</span><span>${format(s.price)}</span><span class="${changeRate(s)>=0?'up':'down'}">${pct(changeRate(s))}</span>
     </div>`).join('');
-  $('watchList').querySelectorAll('.watch-item').forEach(row=>row.onclick=()=>{selectedId=row.dataset.id; render();});
+  $('watchList').querySelectorAll('.watch-item').forEach(row=>row.onclick=(e)=>{
+    if(e.target.dataset.removeId) return;
+    selectedId=row.dataset.id; render();
+  });
+  $('watchList').querySelectorAll('.watch-remove').forEach(btn=>btn.onclick=(e)=>{
+    e.stopPropagation();
+    state.watchIds = state.watchIds.filter(id => id !== btn.dataset.removeId);
+    render();
+  });
+}
+
+function toggleWatch(id){
+  if(!Array.isArray(state.watchIds)) state.watchIds = [];
+  if(state.watchIds.includes(id)){
+    state.watchIds = state.watchIds.filter(x => x !== id);
+    toast(`${stock(id)?.name || '종목'} 관심종목 해제`);
+  }else{
+    state.watchIds.push(id);
+    toast(`${stock(id)?.name || '종목'} 관심종목 추가`);
+  }
+  render();
 }
 
 function renderNews(){
@@ -325,7 +354,7 @@ function renderStocks(){
   const pageList = list.slice(start, start + STOCKS_PER_PAGE);
   $('stockTable').innerHTML = pageList.map(s=>`
     <tr data-id="${s.id}" class="${s.id===selectedId?'active':''}">
-      <td>◆ ${s.name}</td><td>${format(s.price)}</td><td class="${changeAmount(s)>=0?'up':'down'}">${changeAmount(s)>=0?'▲':'▼'} ${format(Math.abs(changeAmount(s)))}</td><td class="${changeRate(s)>=0?'up':'down'}">${pct(changeRate(s))}</td><td>${format(s.volume)}</td>
+      <td><button class="watch-toggle" data-watch-id="${s.id}">${state.watchIds?.includes(s.id)?'★':'☆'}</button> ◆ ${s.name}</td><td>${format(s.price)}</td><td class="${changeAmount(s)>=0?'up':'down'}">${changeAmount(s)>=0?'▲':'▼'} ${format(Math.abs(changeAmount(s)))}</td><td class="${changeRate(s)>=0?'up':'down'}">${pct(changeRate(s))}</td><td>${format(s.volume)}</td>
     </tr>`).join('');
 
   const end = Math.min(start + STOCKS_PER_PAGE, list.length);
@@ -335,7 +364,42 @@ function renderStocks(){
   $('stockPrevBtn').onclick = () => { if(stockPage > 0){ stockPage--; render(); } };
   $('stockNextBtn').onclick = () => { if(stockPage < totalPages - 1){ stockPage++; render(); } };
 
-  $('stockTable').querySelectorAll('tr').forEach(row=>row.onclick=()=>{selectedId=row.dataset.id; render();});
+  $('stockTable').querySelectorAll('tr').forEach(row=>row.onclick=(e)=>{ if(e.target.dataset.watchId) return; selectedId=row.dataset.id; render();});
+  $('stockTable').querySelectorAll('.watch-toggle').forEach(btn=>btn.onclick=(e)=>{ e.stopPropagation(); toggleWatch(btn.dataset.watchId); });
+}
+
+function getCurrentGameMinute(){
+  const mt = marketTime().split(':').map(Number);
+  return mt[0] * 60 + mt[1];
+}
+
+function aggregateCandles(history, bucketMin){
+  const currentMin = getCurrentGameMinute();
+  let filtered = history.filter(d => (d.gameMin || MARKET_OPEN_MIN) <= currentMin);
+  if(!filtered.length) filtered = history.slice(-1);
+  if(bucketMin <= 1) return filtered.slice(-80);
+  const buckets = new Map();
+  filtered.forEach(d=>{
+    const gm = d.gameMin || MARKET_OPEN_MIN;
+    const key = Math.floor((gm - MARKET_OPEN_MIN) / bucketMin) * bucketMin + MARKET_OPEN_MIN;
+    const b = buckets.get(key);
+    if(!b){
+      buckets.set(key, {open:d.open, close:d.close, high:d.high, low:d.low, volume:d.volume, gameMin:key});
+    }else{
+      b.close = d.close;
+      b.high = Math.max(b.high, d.high);
+      b.low = Math.min(b.low, d.low);
+      b.volume += d.volume;
+    }
+  });
+  return [...buckets.values()].slice(-80);
+}
+
+function chartBucketMinutes(){
+  if(chartRange === '10m') return 10;
+  if(chartRange === '1h') return 60;
+  if(chartRange === '1d') return MARKET_TOTAL_MIN;
+  return 1;
 }
 
 function renderChart(){
@@ -343,6 +407,7 @@ function renderChart(){
   $('selectedName').textContent = s.name;
   $('selectedPrice').textContent = `${format(s.price)} ${changeAmount(s)>=0?'▲':'▼'} ${format(Math.abs(changeAmount(s)))} (${pct(changeRate(s))})`;
   $('selectedPrice').className = changeAmount(s)>=0?'up':'down';
+  document.querySelectorAll('#chartTabs button').forEach(btn=>btn.classList.toggle('active', btn.dataset.range === chartRange));
   const canvas = $('chartCanvas');
   const ctx = canvas.getContext('2d');
   const w = canvas.width, h = canvas.height;
@@ -351,13 +416,13 @@ function renderChart(){
   ctx.strokeStyle = 'rgba(150,180,215,.13)'; ctx.lineWidth = 1;
   for(let i=0;i<7;i++){ const y = 20 + i*(h-55)/6; ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(w,y); ctx.stroke(); }
   for(let i=0;i<8;i++){ const x = i*w/7; ctx.beginPath(); ctx.moveTo(x,0); ctx.lineTo(x,h-35); ctx.stroke(); }
-  const data = s.history.slice(-42);
+  const data = aggregateCandles(s.history, chartBucketMinutes());
   const max = Math.max(...data.map(d=>d.high));
   const min = Math.min(...data.map(d=>d.low));
   const range = Math.max(1, max-min);
-  const cw = w / data.length * .58;
+  const cw = Math.max(3, w / Math.max(8,data.length) * .58);
   data.forEach((d,i)=>{
-    const x = i*w/data.length + w/data.length*.5;
+    const x = i*w/Math.max(1,data.length) + w/Math.max(1,data.length)*.5;
     const yH = 18 + (max-d.high)/range*(h-70);
     const yL = 18 + (max-d.low)/range*(h-70);
     const yO = 18 + (max-d.open)/range*(h-70);
@@ -367,11 +432,12 @@ function renderChart(){
     ctx.fillStyle = up ? '#ff4545' : '#2d8cff';
     ctx.beginPath(); ctx.moveTo(x,yH); ctx.lineTo(x,yL); ctx.stroke();
     ctx.fillRect(x-cw/2, Math.min(yO,yC), cw, Math.max(2, Math.abs(yC-yO)));
-    const vh = d.volume / 100 * 28;
+    const vh = Math.min(32, d.volume / 120 * 28);
     ctx.globalAlpha = .42; ctx.fillRect(x-cw/2, h-35-vh, cw, vh); ctx.globalAlpha = 1;
   });
   ctx.fillStyle = '#c8d7ea'; ctx.font = '13px Arial';
-  ctx.fillText('1분', 8, h-10); ctx.fillText('10분', w*.28, h-10); ctx.fillText('1시간', w*.58, h-10); ctx.fillText('1일', w-45, h-10);
+  const labels = chartRange === '1d' ? ['09:00','장중','15:30'] : chartRange === '1h' ? ['09시','10시','11시','12시','13시','14시','15시'] : chartRange === '10m' ? ['10분봉','장중','현재'] : ['1분봉','장중','현재'];
+  labels.forEach((label,i)=>ctx.fillText(label, 8 + i*(w-70)/Math.max(1,labels.length-1), h-10));
 }
 
 function renderOrder(){
@@ -485,7 +551,7 @@ function applyMarketTick(){
     const close = s.price;
     const high = Math.max(open, close) * (1 + Math.random()*0.003);
     const low = Math.min(open, close) * (1 - Math.random()*0.003);
-    s.history.push({open, close, high, low, volume: Math.random()*100});
+    s.history.push({open, close, high, low, volume: Math.random()*100, gameMin:getCurrentGameMinute()});
     if(s.history.length > 260) s.history.shift();
   });
   render();
@@ -528,13 +594,14 @@ $('buyMode').onclick=()=>{buyMode=true; renderOrder();};
 $('sellMode').onclick=()=>{buyMode=false; renderOrder();};
 $('submitOrder').onclick=submitOrder;
 $('nextDayBtn').onclick=nextDay;
-$('resetBtn').onclick=()=>{ if(confirm('게임을 초기화할까요?')){ localStorage.removeItem(storageKey); location.reload(); } };
+$('resetBtn').onclick=()=>{ if(confirm('게임을 초기화할까요?')){ ['antStockSurvivalV7','antStockSurvivalV6','antStockSurvivalV5','antStockSurvivalV4','antStockSurvivalV3'].forEach(k=>localStorage.removeItem(k)); location.reload(); } };
 $('guideBtn').onclick=showGuide;
 $('rankBtn').onclick=showRank;
 $('modalClose').onclick=()=> $('modal').classList.remove('show');
 $('modal').onclick=e=>{ if(e.target.id==='modal') $('modal').classList.remove('show'); };
 $('sortBtn').onclick=()=>{sortByReturn=!sortByReturn; $('sortBtn').textContent = sortByReturn ? '기본순' : '수익률순'; renderWatch();};
 $('moreNewsBtn').onclick=showNewsArchive;
+document.querySelectorAll('#chartTabs button').forEach(btn=>btn.onclick=()=>{ chartRange = btn.dataset.range; renderChart(); saveGame(); });
 $('hintBtn').onclick=()=>toast('뉴스 이벤트는 다음 날 가격 변동에 영향을 줍니다.');
 $('priceDown').onclick=()=>{$('orderPriceInput').value=Math.max(10,Number($('orderPriceInput').value)-10);updateOrderTotal();};
 $('priceUp').onclick=()=>{$('orderPriceInput').value=Number($('orderPriceInput').value)+10;updateOrderTotal();};
@@ -550,3 +617,4 @@ document.querySelectorAll('.quick-pct button').forEach(btn=>btn.onclick=()=>{
 });
 
 render();
+startMarketTicker();

@@ -15,3 +15,7 @@
 @media(max-width:1180px){.summary-grid{grid-template-columns:1fr}.summary-card,.goal-card,.next-day{min-height:94px}}
 
 .stock-pager{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:10px 6px 8px;color:#9fb9d8;font-size:13px}.stock-pager div{display:flex;gap:6px}.stock-pager button{height:30px;min-width:58px;border-radius:5px;background:#14233a;border:1px solid rgba(142,169,205,.18);color:#dbe9ff}.stock-pager button:disabled{opacity:.38;cursor:not-allowed}.stock-table-wrap{max-height:338px;overflow:auto}.stocks-panel{min-height:465px}.chart-panel{margin-top:0}
+
+/* v7 realtime chart + watchlist controls */
+.watch-remove,.watch-toggle{background:transparent;border:0;color:#ffd24c;font-size:18px;line-height:1;padding:0 4px;vertical-align:middle;box-shadow:none}
+.watch-remove:hover,.watch-toggle:hover{filter:brightness(1.25);transform:none}.watch-empty{color:#9eb1c7;text-align:center;line-height:1.8;padding:42px 8px}.stock-table .watch-toggle{margin-right:6px}.chart-tabs button{transition:.15s}.chart-tabs button.active{background:linear-gradient(180deg,#245eb5,#173b77);border-color:#5c9eff;color:#fff}.chart-panel{height:336px}.chart-panel canvas{display:block;width:100%;height:260px}.watch-item{grid-template-columns:27px 1fr 95px 85px}.watch-item .watch-remove{justify-self:start}.summary-card div{overflow:visible}.market-status strong#dateText{white-space:nowrap}.market-status #sessionText{font-variant-numeric:tabular-nums}
